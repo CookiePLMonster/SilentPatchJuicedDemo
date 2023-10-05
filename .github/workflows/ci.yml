@@ -17,11 +17,11 @@ jobs:
               uses: actions/checkout@v4
               with:
                 submodules: recursive
-            # - name: Cache vcpkg
-            #   uses: actions/cache@v3
-            #   with:
-            #     path: vcpkg_installed
-            #     key: ${{ runner.os }}-${{ hashFiles('**/vcpkg.json') }}
+            - name: Cache vcpkg
+              uses: actions/cache@v3
+              with:
+                path: vcpkg_installed
+                key: ${{ runner.os }}-${{ hashFiles('**/vcpkg.json') }}
             - name: Setup Premake5
               uses: abel0b/setup-premake@v2.3
               with:

@@ -3,6 +3,8 @@
 
 #include <cstdio>
 
+#include <wil/resource.h>
+
 #include "Utils/MemoryMgr.h"
 #include "Utils/Patterns.h"
 #include "Utils/ScopedUnprotect.hpp"
@@ -64,13 +66,13 @@ void OnInitializeHook()
 	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule(GetModuleHandle(nullptr), ".text");
 
 #ifndef NDEBUG
-	std::FILE* hFile = nullptr;
-	_wfopen_s(&hFile, L"patches.log", L"w");
+	wil::unique_file hFile;
+	_wfopen_s(hFile.put(), L"patches.log", L"w");
 
-	auto Log = [hFile](const char* format, auto... args)
+	auto Log = [&hFile](const char* format, auto... args)
 	{
-		fprintf_s(hFile, format, args...);
-		fprintf_s(hFile, "\n");
+		fprintf_s(hFile.get(), format, args...);
+		fprintf_s(hFile.get(), "\n");
 	};
 #else
 	// Empty log
@@ -145,12 +147,4 @@ void OnInitializeHook()
 		InjectHook(lock_vb.get<void>(-5), LockVertexBuffer_SaveFPU, HookType::Jump);
 	}
 	TXN_CATCH();
-
-
-#ifndef NDEBUG
-	if (hFile != nullptr)
-	{
-		std::fclose(hFile);
-	}
-#endif
 }

@@ -65,6 +65,8 @@ workspace "*"
 
 	files { "source/*.h", "source/*.cpp", "source/resources/*.rc" }
 
+	vcpkgmanifest "on"
+
 	-- Disable exceptions in WIL
 	defines { "WIL_SUPPRESS_EXCEPTIONS" }
 
