@@ -300,6 +300,24 @@ void OnInitializeHook()
 			Patch<int8_t>(arcade_menu_unlock, 0);
 		}
 		TXN_CATCH();
+
+		// Also unlock all menu options if requested
+		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
+		{
+			auto menu_entries_lock = get_pattern("74 06 C7 01 00 00 00 00 8B 8F 1C 01 00 00", 2);
+			Nop(menu_entries_lock, 6);
+
+			// Also re-enable Cheats and Multiplay
+			try
+			{
+				auto cheats_multiplay_hide = pattern("E8 ? ? ? ? BB ? ? ? ? E8 ? ? ? ? 8B 15 ? ? ? ?").get_one();
+
+				Nop(cheats_multiplay_hide.get<void>(), 5);
+				Nop(cheats_multiplay_hide.get<void>(10), 5);
+			}
+			TXN_CATCH();
+		}
+		TXN_CATCH();
 	}
 
 
