@@ -5,6 +5,8 @@
 
 #include <wil/resource.h>
 
+#include "Registry.h"
+
 #include "Utils/MemoryMgr.h"
 #include "Utils/Patterns.h"
 #include "Utils/ScopedUnprotect.hpp"
@@ -63,7 +65,8 @@ void OnInitializeHook()
 	using namespace Memory;
 	using namespace hook::txn;
 
-	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule(GetModuleHandle(nullptr), ".text");
+	const HMODULE hModule = GetModuleHandle(nullptr);
+	auto Protect = ScopedUnprotect::UnprotectSectionOrFullModule(hModule, ".text");
 
 #ifndef NDEBUG
 	wil::unique_file hFile;
@@ -78,6 +81,13 @@ void OnInitializeHook()
 	// Empty log
 #define Log(...)
 #endif
+
+	// Redirect registry to the INI file
+	const bool HasRegistry = Registry::Init();
+	if (HasRegistry)
+	{
+		Registry::ApplyPatches(hModule);
+	}
 
 	// JuicedConfig: Enable all resolutions in windowed mode (Acclaim)
 	try
