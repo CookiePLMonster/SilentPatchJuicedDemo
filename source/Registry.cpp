@@ -24,6 +24,20 @@ static std::wstring AnsiToWchar(std::string_view text)
 	return result;
 }
 
+static std::string WcharToAnsi(std::wstring_view text)
+{
+	std::string result;
+
+	const int count = WideCharToMultiByte(CP_ACP, 0, text.data(), text.size(), nullptr, 0, nullptr, nullptr);
+	if (count != 0)
+	{
+		result.resize(count);
+		WideCharToMultiByte(CP_ACP, 0, text.data(), text.size(), result.data(), count, nullptr, nullptr);
+	}
+
+	return result;
+}
+
 bool Registry::Init()
 {
 	wil::unique_cotaskmem_string pathToAsi;
@@ -66,6 +80,19 @@ std::optional<CLSID> Registry::GetRegistryCLSID(const wchar_t* section, const wc
 		{
 			result.emplace(clsid);
 		}
+	}
+	return result;
+}
+
+std::optional<std::string> Registry::GetRegistryAnsiString(const wchar_t* section, const wchar_t* key)
+{
+	std::optional<std::string> result;
+
+	wchar_t buf[128];
+	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), pathToIni.c_str());
+	if (buf[0] != '\0')
+	{
+		result.emplace(WcharToAnsi(buf));
 	}
 	return result;
 }

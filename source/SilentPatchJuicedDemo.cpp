@@ -301,4 +301,14 @@ void OnInitializeHook()
 		}
 		TXN_CATCH();
 	}
+
+
+	// Acclaim Juiced: Custom driver names
+	const auto customDriverName = Registry::GetRegistryAnsiString(Registry::ACCLAIM_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
+	if (customDriverName) try
+	{
+		auto driver_name = get_pattern(" B8 ? ? ? ? 8D 4C 24 18 E8 ? ? ? ? 8B 7D 68", 1);
+		Patch(driver_name, _strdup(customDriverName->c_str()));
+	}
+	TXN_CATCH();
 }
