@@ -3,8 +3,10 @@
 
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 
 #include <wil/resource.h>
+#include <wil/win32_helpers.h>
 
 #include "Registry.h"
 
@@ -105,6 +107,24 @@ namespace AcclaimWidescreen
 	}
 }
 
+
+static bool ToyotaMR2FilesPresent()
+{
+	wil::unique_cotaskmem_string pathToGame;
+	if (SUCCEEDED(wil::GetModuleFileNameW(nullptr, pathToGame)))
+	{
+		try
+		{
+			const auto path = std::filesystem::path(pathToGame.get()).parent_path();
+			return std::filesystem::exists(path / L"cars/mr2.dat") && std::filesystem::exists(path / L"cars/mr2_ui.dat") &&
+				std::filesystem::exists(path / L"scripts/Demo2Unlock.txt");
+		}
+		catch (const std::filesystem::filesystem_error&)
+		{
+		}
+	}
+	return false;
+}
 
 void OnInitializeHook()
 {
@@ -223,6 +243,15 @@ void OnInitializeHook()
 
 			**widescreen_flag_and_mult.get<BOOL*>(1) = 1;
 		}
+	}
+	TXN_CATCH();
+
+
+	// Acclaim Juiced: Unlock a Toyota MR2 from the May demo (if present)
+	if (ToyotaMR2FilesPresent()) try
+	{
+		auto demo_unlock = get_pattern("8B 49 2C 8B 11 8D 44 24 10 50 55 68 ? ? ? ? FF 12", 11 + 1);
+		Patch<const char*>(demo_unlock, "Demo2Unlock.txt");
 	}
 	TXN_CATCH();
 }
