@@ -226,23 +226,20 @@ void OnInitializeHook()
 
 
 	// Acclaim Juiced: Proper widescreen
-	if (HasRegistry) try
+	if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0) try
 	{
-		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0)
-		{
-			using namespace AcclaimWidescreen;
+		using namespace AcclaimWidescreen;
 
-			auto set_ar_func = get_pattern("E8 ? ? ? ? 8B F8 85 FF 74 55");
-			auto widescreen_flag_and_mult = pattern("A1 ? ? ? ? 85 C0 74 10 D9 44 24 04 D8 0D ? ? ? ? D9 99 A8 00 00 00").get_one();
-			auto widescreen_div = get_pattern<float*>("D8 0D ? ? ? ? C3 D9 81 A8 00 00 00 C3", 2);
+		auto set_ar_func = get_pattern("E8 ? ? ? ? 8B F8 85 FF 74 55");
+		auto widescreen_flag_and_mult = pattern("A1 ? ? ? ? 85 C0 74 10 D9 44 24 04 D8 0D ? ? ? ? D9 99 A8 00 00 00").get_one();
+		auto widescreen_div = get_pattern<float*>("D8 0D ? ? ? ? C3 D9 81 A8 00 00 00 C3", 2);
 
-			InterceptCall(set_ar_func, orgCreateWindow, CreateWindow_CalculateAR);
+		InterceptCall(set_ar_func, orgCreateWindow, CreateWindow_CalculateAR);
 
-			Patch(widescreen_flag_and_mult.get<void>(13 + 2), &aspectRatioMult);
-			Patch(widescreen_div, &aspectRatioMultInv);
+		Patch(widescreen_flag_and_mult.get<void>(13 + 2), &aspectRatioMult);
+		Patch(widescreen_div, &aspectRatioMultInv);
 
-			**widescreen_flag_and_mult.get<BOOL*>(1) = 1;
-		}
+		**widescreen_flag_and_mult.get<BOOL*>(1) = 1;
 	}
 	TXN_CATCH();
 
@@ -254,4 +251,54 @@ void OnInitializeHook()
 		Patch<const char*>(demo_unlock, "Demo2Unlock.txt");
 	}
 	TXN_CATCH();
+
+
+	// Acclaim Juiced: Unlock all content available in the demo
+	if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::UNLOCK_KEY_NAME).value_or(0) != 0)
+	{
+		// Each unlock is technically independent, so separate them in blocks
+		try
+		{
+			auto courses_lock1 = get_pattern("83 7F 18 01 6A 01 68 ? ? ? ? 0F 84", 11);
+			auto courses_lock2 = pattern("8B 0C 81 3B CD 74 02 89 29").count_hint(2);
+
+			Patch(courses_lock1, {0x90, 0xE9});
+			courses_lock2.for_each_result([](pattern_match match)
+				{
+					Nop(match.get<void>(7), 2);
+				});
+		}
+		TXN_CATCH();
+
+		try
+		{
+			auto race_modes = pattern("8B CD 8B 0C 81 3B CB 74 02 89 19").count_hint(2);
+			race_modes.for_each_result([](pattern_match match)
+				{
+					Nop(match.get<void>(9), 2);
+				});
+		}
+		TXN_CATCH();
+	
+		try
+		{
+			auto up_to_6_laps = get_pattern("46 83 FE ? 89 74 24 08 0F 8C", 1 + 2);
+			Patch<int8_t>(up_to_6_laps, 7);
+		}
+		TXN_CATCH();
+
+		try
+		{
+			auto max_opponents_at_night = get_pattern("BB 04 00 00 00 8B 51 70 8B 42 54");
+			Nop(max_opponents_at_night, 5);
+		}
+		TXN_CATCH();
+
+		try
+		{
+			auto arcade_menu_unlock = get_pattern("83 F8 09 74 29 83 F8 FF 7E 24", 5 + 2);
+			Patch<int8_t>(arcade_menu_unlock, 0);
+		}
+		TXN_CATCH();
+	}
 }

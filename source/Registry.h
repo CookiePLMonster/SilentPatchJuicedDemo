@@ -12,6 +12,8 @@ namespace Registry
 	inline const wchar_t* ACCLAIM_SECTION_NAME = L"Acclaim";
 
 	inline const wchar_t* WIDESCREEN_KEY_NAME = L"Widescreen";
+	inline const wchar_t* UNLOCK_KEY_NAME = L"UnlockAllContent";
+	inline const wchar_t* ALL_UNLOCK_KEY_NAME = L"UnlockAllMenus";
 
 	bool Init();
 	void ApplyPatches(void* module);
