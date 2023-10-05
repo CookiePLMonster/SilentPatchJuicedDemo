@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#include <cmath>
 #include <cstdio>
 
 #include <wil/resource.h>
@@ -59,6 +60,51 @@ namespace FPUCorruptionFix
 		}
 	}
 }
+
+
+namespace AcclaimWidescreen
+{
+	float aspectRatioMult = 1.0f;
+	float aspectRatioMultInv = 1.0f;
+	static void CalculateAR(uint32_t width, uint32_t height)
+	{
+		const double originalMult = std::atan(320.0 / 480.0);
+		const double currentMult = std::atan((static_cast<double>(width) / 2.0) / height);
+
+		aspectRatioMult = static_cast<float>(currentMult / originalMult);
+		aspectRatioMultInv = static_cast<float>(originalMult / currentMult);
+	}
+
+	static void* (*orgCreateWindow)();
+	__declspec(naked) static void* CreateWindow_CalculateAR()
+	{
+		uint32_t width, height;
+		void* a2;
+		_asm
+		{
+			push	ebp
+			mov		ebp, esp
+			sub		esp, __LOCAL_SIZE
+
+			mov		[width], eax
+			mov		[height], ecx
+			mov		[a2], edx
+		}
+
+		CalculateAR(width, height);
+
+		_asm
+		{
+			mov		eax, [width]
+			mov		ecx, [height]
+			mov		edx, [a2]
+			mov		esp, ebp
+			pop		ebp
+			jmp		[orgCreateWindow]
+		}
+	}
+}
+
 
 void OnInitializeHook()
 {
@@ -155,6 +201,28 @@ void OnInitializeHook()
 
 		LockVertexBuffer_CallBack = lock_vb.get<void>();
 		InjectHook(lock_vb.get<void>(-5), LockVertexBuffer_SaveFPU, HookType::Jump);
+	}
+	TXN_CATCH();
+
+
+	// Acclaim Juiced: Proper widescreen
+	if (HasRegistry) try
+	{
+		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0)
+		{
+			using namespace AcclaimWidescreen;
+
+			auto set_ar_func = get_pattern("E8 ? ? ? ? 8B F8 85 FF 74 55");
+			auto widescreen_flag_and_mult = pattern("A1 ? ? ? ? 85 C0 74 10 D9 44 24 04 D8 0D ? ? ? ? D9 99 A8 00 00 00").get_one();
+			auto widescreen_div = get_pattern<float*>("D8 0D ? ? ? ? C3 D9 81 A8 00 00 00 C3", 2);
+
+			InterceptCall(set_ar_func, orgCreateWindow, CreateWindow_CalculateAR);
+
+			Patch(widescreen_flag_and_mult.get<void>(13 + 2), &aspectRatioMult);
+			Patch(widescreen_div, &aspectRatioMultInv);
+
+			**widescreen_flag_and_mult.get<BOOL*>(1) = 1;
+		}
 	}
 	TXN_CATCH();
 }

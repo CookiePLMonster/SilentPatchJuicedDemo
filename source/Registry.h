@@ -11,6 +11,8 @@ namespace Registry
 	inline const wchar_t* REGISTRY_SECTION_NAME = L"Registry";
 	inline const wchar_t* ACCLAIM_SECTION_NAME = L"Acclaim";
 
+	inline const wchar_t* WIDESCREEN_KEY_NAME = L"Widescreen";
+
 	bool Init();
 	void ApplyPatches(void* module);
 
