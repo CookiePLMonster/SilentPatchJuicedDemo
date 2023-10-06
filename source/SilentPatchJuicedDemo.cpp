@@ -320,6 +320,16 @@ void OnInitializeHook()
 				{
 					Nop(match.get<void>(7), 2);
 				});
+
+			// Only disable forced Route 2 if all routes unlocked fine
+			try
+			{
+				auto forced_course_begin = get_pattern_uintptr("72 B4 8B 47 10 8B 90 1C 01 00 00 2B 90 18 01 00 00", 2);
+				auto forced_course_end = get_pattern_uintptr("E8 ? ? ? ? 39 2D ? ? ? ? 0F 84 ? ? ? ? 8B 4F 10 8B 91 1C 01 00 00", 5);
+
+				Patch(forced_course_begin, {0xEB, static_cast<uint8_t>(forced_course_end - forced_course_begin - 2)});
+			}
+			TXN_CATCH();
 		}
 		TXN_CATCH();
 
