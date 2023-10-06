@@ -1,6 +1,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#include <mmreg.h>
+#include <dsound.h>
+
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -62,6 +65,44 @@ namespace FPUCorruptionFix
 		}
 	}
 }
+
+
+namespace AudioCrackleFix
+{
+	HRESULT WINAPI SetNotificationPositions_FixPositions(IDirectSoundNotify* pDSNotify, DWORD cPositionNotifies, LPCDSBPOSITIONNOTIFY lpcPositionNotifies)
+	{
+		// Failsafe
+		if (cPositionNotifies != 3)
+		{
+			return pDSNotify->SetNotificationPositions(cPositionNotifies, lpcPositionNotifies);
+		}
+		// Take the value from the first element in the array
+		const DWORD singleBufferSize = lpcPositionNotifies[0].dwOffset + 1;
+
+		DSBPOSITIONNOTIFY positionNotifies[3];
+		positionNotifies[0].dwOffset = singleBufferSize / 2;
+		positionNotifies[0].hEventNotify = lpcPositionNotifies[0].hEventNotify;
+		positionNotifies[1].dwOffset = positionNotifies[0].dwOffset + singleBufferSize;
+		positionNotifies[1].hEventNotify = lpcPositionNotifies[1].hEventNotify;
+		positionNotifies[2].dwOffset = positionNotifies[1].dwOffset + singleBufferSize;
+		positionNotifies[2].hEventNotify = lpcPositionNotifies[2].hEventNotify;
+
+		return pDSNotify->SetNotificationPositions(std::size(positionNotifies), positionNotifies);
+	}
+
+	__declspec(naked) void SetNotificationPositions_Hook()
+	{
+		_asm
+		{
+			push	dword ptr [esp+12]
+			push	dword ptr [esp+4+8]
+			push	dword ptr [esp+8+4]
+			call	SetNotificationPositions_FixPositions
+			test	eax, eax
+			retn	12
+		}
+	}
+};
 
 
 namespace AcclaimWidescreen
@@ -221,6 +262,18 @@ void OnInitializeHook()
 
 		LockVertexBuffer_CallBack = lock_vb.get<void>();
 		InjectHook(lock_vb.get<void>(-5), LockVertexBuffer_SaveFPU, HookType::Jump);
+	}
+	TXN_CATCH();
+
+
+	// Juiced Acclaim: Notify the music thread it's time to stream new music earlier
+	// Fixes music crackling due to the new data arriving too late
+	try
+	{
+		using namespace AudioCrackleFix;
+
+		auto set_notifications = get_pattern("FF 51 0C 85 C0 74 0F");
+		InjectHook(set_notifications, SetNotificationPositions_Hook, HookType::Call);
 	}
 	TXN_CATCH();
 
