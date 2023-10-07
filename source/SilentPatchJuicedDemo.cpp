@@ -278,6 +278,15 @@ void OnInitializeHook()
 	TXN_CATCH();
 
 
+	// Acclaim Juiced (May): Make Alt+F4 forcibly kill the process
+	try
+	{
+		auto exit_process = get_pattern("75 11 6A 00 FF 15 ? ? ? ? 5F", 4);
+		InjectHook(exit_process, &ExitProcess, HookType::Jump);
+	}
+	TXN_CATCH();
+
+
 	// Acclaim Juiced: Proper widescreen
 	if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0) try
 	{
