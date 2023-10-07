@@ -167,6 +167,48 @@ static bool ToyotaMR2FilesPresent()
 	return false;
 }
 
+static bool VideoFilesPresent()
+{
+	wil::unique_cotaskmem_string pathToGame;
+	if (SUCCEEDED(wil::GetModuleFileNameW(nullptr, pathToGame)))
+	{
+		try
+		{
+			const auto path = std::filesystem::path(pathToGame.get()).parent_path();
+			return std::filesystem::exists(path / L"movies/video1.bik") && std::filesystem::exists(path / L"movies/video2.bik") &&
+				std::filesystem::exists(path / L"movies/video3.bik");
+		}
+		catch (const std::filesystem::filesystem_error&)
+		{
+		}
+	}
+	return false;
+}
+
+static bool bVideoFilesPresent = false;
+static bool bAllEntriesUnlocked = false;
+__declspec(naked) void ShouldUnlockMenuEntry()
+{
+	_asm
+	{
+		cmp		[bAllEntriesUnlocked], 1
+		je		ShouldUnlockMenuEntry_Return
+		test	eax, eax
+		je		ShouldUnlockMenuEntry_Return
+		cmp		eax, 2
+		je		ShouldUnlockMenuEntry_Return
+		cmp		eax, 9
+		je		ShouldUnlockMenuEntry_Return
+
+		cmp		[bVideoFilesPresent], 1
+		jne		ShouldUnlockMenuEntry_Return
+		cmp		eax, 5
+
+		ShouldUnlockMenuEntry_Return:
+		retn
+	}
+}
+
 void OnInitializeHook()
 {
 	using namespace Memory;
@@ -391,26 +433,23 @@ void OnInitializeHook()
 		try
 		{
 			// June/July only
-			auto arcade_menu_unlock = get_pattern("83 F8 09 74 29 83 F8 FF 7E 24", 5 + 2);
-			Patch<int8_t>(arcade_menu_unlock, 0);
+			auto arcade_menu_unlock = pattern("83 F8 02 74 2E 83 F8 09 74 29 83 F8 FF 7E 24").get_one();
+			Nop(arcade_menu_unlock.get<void>(), 3);
+			InjectHook(arcade_menu_unlock.get<void>(3), ShouldUnlockMenuEntry, HookType::Call);
+
+			bVideoFilesPresent = VideoFilesPresent();
 		}
 		TXN_CATCH();
 
 		// Also unlock all menu options if requested
 		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
 		{
-			auto menu_entries_lock = get_pattern("74 06 C7 01 00 00 00 00 8B 8F 1C 01 00 00", 2);
-			Nop(menu_entries_lock, 6);
+			bAllEntriesUnlocked = true;
 
-			// Also re-enable Cheats and Multiplay
-			try
-			{
-				auto cheats_multiplay_hide = pattern("E8 ? ? ? ? BB ? ? ? ? E8 ? ? ? ? 8B 15 ? ? ? ?").get_one();
+			auto cheats_multiplay_hide = pattern("E8 ? ? ? ? BB ? ? ? ? E8 ? ? ? ? 8B 15 ? ? ? ?").get_one();
 
-				Nop(cheats_multiplay_hide.get<void>(), 5);
-				Nop(cheats_multiplay_hide.get<void>(10), 5);
-			}
-			TXN_CATCH();
+			Nop(cheats_multiplay_hide.get<void>(), 5);
+			Nop(cheats_multiplay_hide.get<void>(10), 5);
 		}
 		TXN_CATCH();
 	}
