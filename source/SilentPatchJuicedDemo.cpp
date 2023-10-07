@@ -283,7 +283,18 @@ void OnInitializeHook()
 	{
 		using namespace AcclaimWidescreen;
 
-		auto set_ar_func = get_pattern("E8 ? ? ? ? 8B F8 85 FF 74 55");
+		auto set_ar_func = [] {
+			try
+			{
+				// June/July
+				return get_pattern("E8 ? ? ? ? 8B F8 85 FF 74 55");
+			}
+			catch (hook::txn_exception&)
+			{
+				// May
+				return get_pattern("0F 94 C2 56 E8 ? ? ? ? 8B F8 85 FF", 4);
+			}
+		}();
 		auto widescreen_flag_and_mult = pattern("A1 ? ? ? ? 85 C0 74 10 D9 44 24 04 D8 0D ? ? ? ? D9 99 A8 00 00 00").get_one();
 		auto widescreen_div = get_pattern<float*>("D8 0D ? ? ? ? C3 D9 81 A8 00 00 00 C3", 2);
 
@@ -312,10 +323,21 @@ void OnInitializeHook()
 		// Each unlock is technically independent, so separate them in blocks
 		try
 		{
-			auto courses_lock1 = get_pattern("83 7F 18 01 6A 01 68 ? ? ? ? 0F 84", 11);
-			auto courses_lock2 = pattern("8B 0C 81 3B CD 74 02 89 29").count_hint(2);
+			try
+			{
+				// June/July
+				auto courses_lock1 = get_pattern("83 7F 18 01 6A 01 68 ? ? ? ? 0F 84", 11);
+				Patch(courses_lock1, {0x90, 0xE9});
+			}
+			catch (hook::txn_exception&)
+			{
+				// May
+				auto courses_lock1 = get_pattern("74 0F 8B 94 24 ? ? ? ? 52");
+				Patch<uint8_t>(courses_lock1, 0xEB);
+			}
 
-			Patch(courses_lock1, {0x90, 0xE9});
+			auto courses_lock2 = pattern("8B 0C 81 3B CD 74 02 89 29").count_hint(4);
+
 			courses_lock2.for_each_result([](pattern_match match)
 				{
 					Nop(match.get<void>(7), 2);
@@ -359,6 +381,7 @@ void OnInitializeHook()
 
 		try
 		{
+			// June/July only
 			auto arcade_menu_unlock = get_pattern("83 F8 09 74 29 83 F8 FF 7E 24", 5 + 2);
 			Patch<int8_t>(arcade_menu_unlock, 0);
 		}
