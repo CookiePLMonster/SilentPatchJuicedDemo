@@ -209,6 +209,23 @@ __declspec(naked) void ShouldUnlockMenuEntry()
 	}
 }
 
+__declspec(naked) void ShouldUnlockMenuEntry_May()
+{
+	_asm
+	{
+		cmp		[bAllEntriesUnlocked], 1
+		je		ShouldUnlockMenuEntry_Return
+		test	eax, eax
+		je		ShouldUnlockMenuEntry_Return
+		cmp		eax, 1
+		je		ShouldUnlockMenuEntry_Return
+		cmp		eax, 9
+
+		ShouldUnlockMenuEntry_Return:
+		retn
+	}
+}
+
 void OnInitializeHook()
 {
 	using namespace Memory;
@@ -439,7 +456,19 @@ void OnInitializeHook()
 
 			bVideoFilesPresent = VideoFilesPresent();
 		}
-		TXN_CATCH();
+		catch (hook::txn_exception&)
+		{
+			try
+			{
+				// May
+				auto arcade_menu_unlock = pattern("85 C0 74 33 83 F8 09 74 2E 83 F8 05 74 29 83 F8 FF").get_one();
+				Nop(arcade_menu_unlock.get<void>(), 2);
+				InjectHook(arcade_menu_unlock.get<void>(2), ShouldUnlockMenuEntry_May, HookType::Call);
+
+				bVideoFilesPresent = true;
+			}
+			TXN_CATCH();
+		}
 
 		// Also unlock all menu options if requested
 		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
