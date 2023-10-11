@@ -482,4 +482,13 @@ void OnInitializeHook()
 		Patch(driver_name, _strdup(customDriverName->c_str()));
 	}
 	TXN_CATCH();
+
+
+	// THQ Juiced (January 2005): Fix a startup crash with more than 4 cores
+	try
+	{
+		auto get_core_count = get_pattern("03 C8 83 F9 20 7C EE 5F", 2 + 2);
+		Patch<uint8_t>(get_core_count, 4);
+	}
+	TXN_CATCH();
 }
