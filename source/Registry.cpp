@@ -3,12 +3,27 @@
 #include <filesystem>
 #include <string>
 
+#include <guiddef.h>
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
 #include <wil/win32_helpers.h>
 
-static std::wstring pathToIni = L".\\" rsc_Name ".ini";
+static std::wstring pathToPatchIni = L".\\" rsc_Name ".ini";
+static std::wstring pathToGameIni = L".\\settings.ini";
+
+namespace Registry
+{
+	inline const wchar_t* REGISTRY_SECTION_NAME = L"Registry";
+
+	std::optional<uint32_t> GetRegistryDword(const wchar_t* section, const wchar_t* key, const std::wstring& path);
+	std::optional<CLSID> GetRegistryCLSID(const wchar_t* section, const wchar_t* key, const std::wstring& path);
+	std::optional<std::string> GetRegistryAnsiString(const wchar_t* section, const wchar_t* key, const std::wstring& path);
+
+	void SetRegistryDword(const wchar_t* section, const wchar_t* key, uint32_t value, const std::wstring& path);
+	void SetRegistryCLSID(const wchar_t* section, const wchar_t* key, const CLSID& value, const std::wstring& path);
+}
 
 static std::wstring AnsiToWchar(std::string_view text)
 {
@@ -40,26 +55,48 @@ static std::string WcharToAnsi(std::wstring_view text)
 
 bool Registry::Init()
 {
-	wil::unique_cotaskmem_string pathToAsi;
+	bool gotPathToPatchIni = false, gotPathToGameIni = false;
+
+	wil::unique_cotaskmem_string pathToAsi, pathToGame;
 	if (SUCCEEDED(wil::GetModuleFileNameW(wil::GetModuleInstanceHandle(), pathToAsi)))
 	{
 		try
 		{
-			pathToIni = std::filesystem::path(pathToAsi.get()).replace_extension(L"ini").wstring();
-			return true;
+			pathToPatchIni = std::filesystem::path(pathToAsi.get()).replace_extension(L"ini").wstring();
+			gotPathToPatchIni = true;
 		}
 		catch (const std::filesystem::filesystem_error&)
 		{
 		}
 	}
-	return false;
+	if (SUCCEEDED(wil::GetModuleFileNameW(nullptr, pathToGame)))
+	{
+		try
+		{
+			pathToGameIni = std::filesystem::path(pathToGame.get()).replace_filename(L"settings.ini").wstring();
+			gotPathToGameIni = true;
+		}
+		catch (const std::filesystem::filesystem_error&)
+		{
+		}
+	}
+	return gotPathToPatchIni && gotPathToGameIni;
 }
 
+std::optional<uint32_t> Registry::GetDword(const wchar_t* section, const wchar_t* key)
+{
+	return GetRegistryDword(section, key, pathToPatchIni);
+}
 
-std::optional<uint32_t> Registry::GetRegistryDword(const wchar_t* section, const wchar_t* key)
+std::optional<std::string> Registry::GetAnsiString(const wchar_t* section, const wchar_t* key)
+{
+	return GetRegistryAnsiString(section, key, pathToPatchIni);
+}
+
+std::optional<uint32_t> Registry::GetRegistryDword(const wchar_t* section, const wchar_t* key, const std::wstring& path)
 {
 	std::optional<uint32_t> result;
-	const INT val = GetPrivateProfileIntW(section, key, -1, pathToIni.c_str());
+	const INT val = GetPrivateProfileIntW(section, key, -1, path.c_str());
 	if (val >= 0)
 	{
 		result.emplace(static_cast<uint32_t>(val));
@@ -67,12 +104,12 @@ std::optional<uint32_t> Registry::GetRegistryDword(const wchar_t* section, const
 	return result;
 }
 
-std::optional<CLSID> Registry::GetRegistryCLSID(const wchar_t* section, const wchar_t* key)
+std::optional<CLSID> Registry::GetRegistryCLSID(const wchar_t* section, const wchar_t* key, const std::wstring& path)
 {
 	std::optional<CLSID> result;
 
 	wchar_t buf[wil::guid_string_buffer_length];
-	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), pathToIni.c_str());
+	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), path.c_str());
 	if (buf[0] != '\0')
 	{
 		CLSID clsid;
@@ -84,12 +121,12 @@ std::optional<CLSID> Registry::GetRegistryCLSID(const wchar_t* section, const wc
 	return result;
 }
 
-std::optional<std::string> Registry::GetRegistryAnsiString(const wchar_t* section, const wchar_t* key)
+std::optional<std::string> Registry::GetRegistryAnsiString(const wchar_t* section, const wchar_t* key, const std::wstring& path)
 {
 	std::optional<std::string> result;
 
 	wchar_t buf[128];
-	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), pathToIni.c_str());
+	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), path.c_str());
 	if (buf[0] != '\0')
 	{
 		result.emplace(WcharToAnsi(buf));
@@ -97,17 +134,17 @@ std::optional<std::string> Registry::GetRegistryAnsiString(const wchar_t* sectio
 	return result;
 }
 
-void Registry::SetRegistryDword(const wchar_t* section, const wchar_t* key, uint32_t value)
+void Registry::SetRegistryDword(const wchar_t* section, const wchar_t* key, uint32_t value, const std::wstring& path)
 {
-	WritePrivateProfileStringW(section, key, std::to_wstring(value).c_str(), pathToIni.c_str());
+	WritePrivateProfileStringW(section, key, std::to_wstring(value).c_str(), path.c_str());
 }
 
-void Registry::SetRegistryCLSID(const wchar_t* section, const wchar_t* key, const CLSID& value)
+void Registry::SetRegistryCLSID(const wchar_t* section, const wchar_t* key, const CLSID& value, const std::wstring& path)
 {
 	wchar_t buf[wil::guid_string_buffer_length];
 	if (StringFromGUID2(value, buf, std::size(buf)) != 0)
 	{
-		WritePrivateProfileStringW(section, key, buf, pathToIni.c_str());
+		WritePrivateProfileStringW(section, key, buf, path.c_str());
 	}
 }
 
@@ -118,7 +155,7 @@ static LSTATUS WINAPI RegCreateKeyExA_Redirect(HKEY hKey, LPCSTR lpSubKey, DWORD
 	if (hKey == HKEY_CURRENT_USER && strstr(lpSubKey, "\\Juiced") != nullptr)
 	{
 		// Return a "pseudo-handle"
-		*phkResult = reinterpret_cast<HKEY>(&pathToIni);
+		*phkResult = reinterpret_cast<HKEY>(&pathToGameIni);
 		return ERROR_SUCCESS;
 	}
 	return orgRegCreateKeyExA(hKey, lpSubKey, Reserved, lpClass, dwOptions, samDesired, lpSecurityAttributes, phkResult, lpdwDisposition);
@@ -127,7 +164,7 @@ static LSTATUS WINAPI RegCreateKeyExA_Redirect(HKEY hKey, LPCSTR lpSubKey, DWORD
 static decltype(::RegCloseKey)* orgRegCloseKey;
 static LSTATUS WINAPI RegCloseKey_Redirect(HKEY hKey)
 {
-	if (hKey == reinterpret_cast<HKEY>(&pathToIni))
+	if (hKey == reinterpret_cast<HKEY>(&pathToGameIni))
 	{
 		return ERROR_SUCCESS;
 	}
@@ -137,7 +174,7 @@ static LSTATUS WINAPI RegCloseKey_Redirect(HKEY hKey)
 static decltype(::RegQueryValueExA)* orgRegQueryValueExA;
 static LSTATUS WINAPI RegQueryValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, LPDWORD lpReserved, LPDWORD lpType, LPBYTE lpData, LPDWORD lpcbData)
 {
-	if (hKey == reinterpret_cast<HKEY>(&pathToIni))
+	if (hKey == reinterpret_cast<HKEY>(&pathToGameIni))
 	{
 		if (lpValueName == nullptr)
 		{
@@ -145,7 +182,7 @@ static LSTATUS WINAPI RegQueryValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, L
 		}
 		if (_stricmp(lpValueName, "Adapter") == 0)
 		{
-			auto guid = Registry::GetRegistryCLSID(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str());
+			auto guid = Registry::GetRegistryCLSID(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), pathToGameIni);
 			if (guid)
 			{
 				if (lpData != nullptr && lpcbData != nullptr)
@@ -160,7 +197,7 @@ static LSTATUS WINAPI RegQueryValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, L
 		}
 
 		// Everything else is integers
-		auto value = Registry::GetRegistryDword(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str());
+		auto value = Registry::GetRegistryDword(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), pathToGameIni);
 		if (value)
 		{
 			if (lpData != nullptr && lpcbData != nullptr)
@@ -179,7 +216,7 @@ static LSTATUS WINAPI RegQueryValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, L
 static decltype(::RegSetValueExA)* orgRegSetValueExA;
 static LSTATUS WINAPI RegSetValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, DWORD Reserved, DWORD dwType, const BYTE *lpData, DWORD cbData)
 {
-	if (hKey == reinterpret_cast<HKEY>(&pathToIni))
+	if (hKey == reinterpret_cast<HKEY>(&pathToGameIni))
 	{
 		if (lpValueName == nullptr)
 		{
@@ -190,7 +227,7 @@ static LSTATUS WINAPI RegSetValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, DWO
 		{
 			if (cbData >= sizeof(CLSID))
 			{
-				Registry::SetRegistryCLSID(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), *reinterpret_cast<const CLSID*>(lpData));
+				Registry::SetRegistryCLSID(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), *reinterpret_cast<const CLSID*>(lpData), pathToGameIni);
 			}
 			return ERROR_SUCCESS;
 		}
@@ -198,7 +235,7 @@ static LSTATUS WINAPI RegSetValueExA_Redirect(HKEY hKey, LPCSTR lpValueName, DWO
 		// Everything else is integers
 		if (cbData >= sizeof(DWORD))
 		{
-			Registry::SetRegistryDword(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), *reinterpret_cast<const DWORD*>(lpData));
+			Registry::SetRegistryDword(Registry::REGISTRY_SECTION_NAME, AnsiToWchar(lpValueName).c_str(), *reinterpret_cast<const DWORD*>(lpData), pathToGameIni);
 		}
 		return ERROR_SUCCESS;
 	}

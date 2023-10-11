@@ -151,36 +151,26 @@ namespace AcclaimWidescreen
 
 static bool ToyotaMR2FilesPresent()
 {
-	wil::unique_cotaskmem_string pathToGame;
-	if (SUCCEEDED(wil::GetModuleFileNameW(nullptr, pathToGame)))
+	try
 	{
-		try
-		{
-			const auto path = std::filesystem::path(pathToGame.get()).parent_path();
-			return std::filesystem::exists(path / L"cars/mr2.dat") && std::filesystem::exists(path / L"cars/mr2_ui.dat") &&
-				std::filesystem::exists(path / L"scripts/Demo2Unlock.txt");
-		}
-		catch (const std::filesystem::filesystem_error&)
-		{
-		}
+		return std::filesystem::exists(L"cars/mr2.dat") && std::filesystem::exists(L"cars/mr2_ui.dat") &&
+			std::filesystem::exists(L"scripts/Demo2Unlock.txt");
+	}
+	catch (const std::filesystem::filesystem_error&)
+	{
 	}
 	return false;
 }
 
 static bool VideoFilesPresent()
 {
-	wil::unique_cotaskmem_string pathToGame;
-	if (SUCCEEDED(wil::GetModuleFileNameW(nullptr, pathToGame)))
+	try
 	{
-		try
-		{
-			const auto path = std::filesystem::path(pathToGame.get()).parent_path();
-			return std::filesystem::exists(path / L"movies/video1.bik") && std::filesystem::exists(path / L"movies/video2.bik") &&
-				std::filesystem::exists(path / L"movies/video3.bik");
-		}
-		catch (const std::filesystem::filesystem_error&)
-		{
-		}
+		return std::filesystem::exists(L"movies/video1.bik") && std::filesystem::exists(L"movies/video2.bik") &&
+			std::filesystem::exists(L"movies/video3.bik");
+	}
+	catch (const std::filesystem::filesystem_error&)
+	{
 	}
 	return false;
 }
@@ -347,7 +337,7 @@ void OnInitializeHook()
 
 
 	// Acclaim Juiced: Proper widescreen
-	if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0) try
+	if (Registry::GetDword(Registry::ACCLAIM_SECTION_NAME, Registry::WIDESCREEN_KEY_NAME).value_or(0) != 0) try
 	{
 		using namespace AcclaimWidescreen;
 
@@ -386,7 +376,7 @@ void OnInitializeHook()
 
 
 	// Acclaim Juiced: Unlock all content available in the demo
-	if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::UNLOCK_KEY_NAME).value_or(0) != 0)
+	if (Registry::GetDword(Registry::ACCLAIM_SECTION_NAME, Registry::UNLOCK_KEY_NAME).value_or(0) != 0)
 	{
 		// Each unlock is technically independent, so separate them in blocks
 		try
@@ -471,7 +461,7 @@ void OnInitializeHook()
 		}
 
 		// Also unlock all menu options if requested
-		if (Registry::GetRegistryDword(Registry::ACCLAIM_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
+		if (Registry::GetDword(Registry::ACCLAIM_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
 		{
 			bAllEntriesUnlocked = true;
 
@@ -485,7 +475,7 @@ void OnInitializeHook()
 
 
 	// Acclaim Juiced: Custom driver names
-	const auto customDriverName = Registry::GetRegistryAnsiString(Registry::ACCLAIM_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
+	const auto customDriverName = Registry::GetAnsiString(Registry::ACCLAIM_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
 	if (customDriverName) try
 	{
 		auto driver_name = get_pattern(" B8 ? ? ? ? 8D 4C 24 18 E8 ? ? ? ? 8B 7D 68", 1);
