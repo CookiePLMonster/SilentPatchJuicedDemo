@@ -119,6 +119,7 @@ namespace AcclaimWidescreen
 	}
 
 	static void* (*orgCreateWindow)();
+	#pragma warning(suppress:4740)
 	__declspec(naked) static void* CreateWindow_CalculateAR()
 	{
 		uint32_t width, height;
@@ -149,29 +150,32 @@ namespace AcclaimWidescreen
 }
 
 
-static bool ToyotaMR2FilesPresent()
+static bool ToyotaMR2FilesPresent() try
 {
-	try
-	{
-		return std::filesystem::exists(L"cars/mr2.dat") && std::filesystem::exists(L"cars/mr2_ui.dat") &&
-			std::filesystem::exists(L"scripts/Demo2Unlock.txt");
-	}
-	catch (const std::filesystem::filesystem_error&)
-	{
-	}
+	return std::filesystem::exists(L"cars/mr2.dat") && std::filesystem::exists(L"cars/mr2_ui.dat") &&
+		std::filesystem::exists(L"scripts/Demo2Unlock.txt");
+}
+catch (const std::filesystem::filesystem_error&)
+{
 	return false;
 }
 
-static bool VideoFilesPresent()
+static bool VideoFilesPresent() try
 {
-	try
-	{
-		return std::filesystem::exists(L"movies/video1.bik") && std::filesystem::exists(L"movies/video2.bik") &&
-			std::filesystem::exists(L"movies/video3.bik");
-	}
-	catch (const std::filesystem::filesystem_error&)
-	{
-	}
+	return std::filesystem::exists(L"movies/video1.bik") && std::filesystem::exists(L"movies/video2.bik") &&
+		std::filesystem::exists(L"movies/video3.bik");
+}
+catch (const std::filesystem::filesystem_error&)
+{
+	return false;
+}
+
+static bool CareerFilePresent() try
+{
+	return std::filesystem::exists(L"scripts/CMSPlayersCrewCollection2.txt");
+}
+catch (const std::filesystem::filesystem_error&)
+{
 	return false;
 }
 
@@ -215,6 +219,223 @@ __declspec(naked) void ShouldUnlockMenuEntry_May()
 		retn
 	}
 }
+
+
+namespace THQCustomizableRace
+{
+	struct RaceInfoInner
+	{
+		char field_0;
+		char field_1;
+		char field_2;
+		int m_gameMode;
+		int field_8;
+		char field_C;
+		char m_opponentPicked[9];
+		char m_numOpponents;
+		char field_17;
+		char field_18;
+		int m_trackNum;
+		int field_20;
+		uint8_t m_numLaps;
+		int field_28;
+		int field_2C;
+		int field_30;
+		int field_34;
+	};
+
+	struct RaceInfo
+	{
+		char field_0;
+		char field_1;
+		char field_2;
+		char field_3;
+		std::byte gap4[2];
+		char field_6;
+		char field_7;
+		int field_8;
+		char field_C;
+		char field_D;
+		int m_gameMode;
+		int field_14;
+		int field_18;
+		RaceInfoInner m_trackInfo[1];
+		char m_indexAlwaysZero;
+		char field_55;
+		bool m_opponentPresent[9];
+		std::byte gap5f;
+		char field_60[12];
+		int field_6C;
+		std::byte gap70[12];
+		uint32_t m_timeOfDay;
+		uint32_t m_weather;
+	};
+	static_assert(sizeof(RaceInfo) == 0x84, "Wrong size: RaceInfo");
+
+	static void (__fastcall* orgSetupRace)(void*, void*, RaceInfo* raceInfo);
+	static void __fastcall SetupRace_Customizable(void* a1, void* a2,  RaceInfo* raceInfo)
+	{
+		if (raceInfo->m_gameMode == 2) // Showoff
+		{
+			raceInfo->m_trackInfo[0].m_trackNum = 33;
+			raceInfo->m_trackInfo[0].m_numLaps = 1;
+		}
+		else if (raceInfo->m_gameMode == 5) // Sprint
+		{
+			raceInfo->m_trackInfo[0].m_trackNum = 34;
+			raceInfo->m_trackInfo[0].m_numLaps = 1;
+		}
+		else
+		{
+			raceInfo->m_trackInfo[0].m_numLaps = static_cast<int8_t>(std::clamp(Registry::GetInt(Registry::THQ_SECTION_NAME, L"Race.NumLaps").value_or(3), 1, 99));
+
+			// Cruise - 33
+			// Sprint - 34
+			const auto routeStr = Registry::GetString(Registry::THQ_SECTION_NAME, L"Race.Route").value_or(L"Downtown_r1");
+			const std::pair<const wchar_t*, uint32_t> routeChoices[] = { 
+				{ L"Downtown_r1", 25 },
+				{ L"Downtown_r2", 26 },
+				{ L"Downtown_r3", 27 },
+				{ L"Downtown_r4", 28 },
+				{ L"Downtown_r1_rev", 29 },
+				{ L"Downtown_r2_rev", 30 },
+				{ L"Downtown_r3_rev", 31 },
+				{ L"Downtown_r4_rev", 32 },
+				{ L"Downtown_P2P", 35 },
+				{ L"Downtown_P2P_rev", 36 },
+			};
+			for (const auto& choice : routeChoices)
+			{
+				if (_wcsicmp(routeStr.c_str(), choice.first) == 0)
+				{
+					raceInfo->m_trackInfo[0].m_trackNum = choice.second;
+					break;
+				}
+			}
+		}
+		{
+			const auto timeOfDayStr = Registry::GetString(Registry::THQ_SECTION_NAME, L"Race.TimeOfDay").value_or(L"morning");
+			const std::pair<const wchar_t*, uint32_t> timeOfDayChoices[] = { 
+				{ L"morning", 1 },
+				{ L"afternoon", 2 },
+				{ L"evening", 3 },
+				{ L"night", 4 },
+			};
+			for (const auto& choice : timeOfDayChoices)
+			{
+				if (_wcsicmp(timeOfDayStr.c_str(), choice.first) == 0)
+				{
+					raceInfo->m_timeOfDay = choice.second;
+					break;
+				}
+			}
+		}
+		{
+			const auto weatherStr = Registry::GetString(Registry::THQ_SECTION_NAME, L"Race.Weather").value_or(L"clear");
+			const std::pair<const wchar_t*, uint32_t> weatherChoices[] = { 
+				{ L"clear", 1 },
+				{ L"wet", 2 },
+			};
+			for (const auto& choice : weatherChoices)
+			{
+				if (_wcsicmp(weatherStr.c_str(), choice.first) == 0)
+				{
+					raceInfo->m_weather = choice.second;
+					break;
+				}
+			}
+		}
+
+		orgSetupRace(a1, a2, raceInfo);
+	}
+
+	void SetupInfoForGameMode_Customizable(RaceInfo* raceInfo)
+	{
+		{
+			const auto gameModeStr = Registry::GetString(Registry::THQ_SECTION_NAME, L"Race.GameMode").value_or(L"race");
+			const std::pair<const wchar_t*, uint32_t> gameModeChoices[] = { 
+				{ L"solo", 0 },
+				{ L"showoff", 2 },
+				{ L"race", 4 },
+				{ L"sprint", 5 },
+			};
+			for (const auto& choice : gameModeChoices)
+			{
+				if (_wcsicmp(gameModeStr.c_str(), choice.first) == 0)
+				{
+					raceInfo->m_gameMode = choice.second;
+					break;
+				}
+			}
+		}
+
+		uint32_t numCars = Registry::GetDword(Registry::THQ_SECTION_NAME, L"Race.NumCars").value_or(4);
+		if (raceInfo->m_gameMode == 0 || raceInfo->m_gameMode == 2)
+		{
+			numCars = 1;
+		}
+		else if (raceInfo->m_gameMode == 5)
+		{
+			numCars = std::clamp(numCars, 2u, 4u);
+		}
+		else
+		{
+			numCars = std::clamp(numCars, 2u, 6u);
+		}
+
+		std::fill(std::begin(raceInfo->m_opponentPresent), std::end(raceInfo->m_opponentPresent), false);
+		if (numCars >= 1)
+		{
+			raceInfo->m_opponentPresent[0] = true;
+		}
+		if (numCars >= 2)
+		{
+			raceInfo->m_opponentPresent[1] = true;
+		}
+		if (numCars >= 3)
+		{
+			raceInfo->m_opponentPresent[2] = true;
+		}
+		if (numCars >= 4)
+		{
+			raceInfo->m_opponentPresent[4] = true;
+		}
+		if (numCars >= 5)
+		{
+			raceInfo->m_opponentPresent[5] = true;
+		}
+		if (numCars >= 6)
+		{
+			raceInfo->m_opponentPresent[6] = true;
+		}
+	}
+
+	static void* orgSetupInfoForGameMode;
+	#pragma warning(suppress:4740)
+	__declspec(naked) void SetupInfoForGameMode_Hook()
+	{
+		void* a1;
+		RaceInfo* raceInfo;
+		_asm
+		{
+			push	ebp
+			mov		ebp, esp
+			sub		esp, __LOCAL_SIZE
+			mov		[a1], edx
+			mov		[raceInfo], edi
+		}
+		SetupInfoForGameMode_Customizable(raceInfo);
+		_asm
+		{
+			mov		edx, [a1]
+			mov		edi, [raceInfo]
+			mov		esp, ebp
+			pop		ebp
+			jmp		[orgSetupInfoForGameMode]
+		}
+	}
+}
+
 
 void OnInitializeHook()
 {
@@ -489,6 +710,38 @@ void OnInitializeHook()
 	{
 		auto get_core_count = get_pattern("03 C8 83 F9 20 7C EE 5F", 2 + 2);
 		Patch<uint8_t>(get_core_count, 4);
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced: Custom starter car
+	if (CareerFilePresent()) try
+	{
+		auto cms_player_crew_collection = get_pattern("68 ? ? ? ? E8 ? ? ? ? 8B 85 ? ? ? ? 8B 08 8B 11", 1);
+		Patch<const char*>(cms_player_crew_collection, "CMSPlayersCrewCollection2.txt");
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced: Customizable second race
+	if (HasRegistry) try
+	{
+		using namespace THQCustomizableRace;
+
+		auto setup_race = get_pattern("E8 ? ? ? ? 8B 8C 24 ? ? ? ? E8 ? ? ? ? 5F 5E 5B 8B E5 5D C2 0C 00");
+		auto setup_info_for_gamemode = get_pattern("C7 44 24 ? ? ? ? ? E8 ? ? ? ? B8 01 00 00 00", 8);
+
+		InterceptCall(setup_race, orgSetupRace, SetupRace_Customizable);
+		InterceptCall(setup_info_for_gamemode, orgSetupInfoForGameMode, SetupInfoForGameMode_Hook);
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced: Endless demo
+	if (Registry::GetDword(Registry::THQ_SECTION_NAME, Registry::ENDLESS_DEMO_KEY_NAME).value_or(0) != 0) try
+	{
+		auto endless_demo = get_pattern("80 7C D0 32 02 75 6C 8B 5E 70 89 3B", 5);
+		Nop(endless_demo, 2);
 	}
 	TXN_CATCH();
 }

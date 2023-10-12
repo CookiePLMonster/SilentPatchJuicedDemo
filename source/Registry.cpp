@@ -17,9 +17,11 @@ namespace Registry
 {
 	inline const wchar_t* REGISTRY_SECTION_NAME = L"Registry";
 
+	std::optional<int32_t> GetRegistryInt(const wchar_t* section, const wchar_t* key, const std::wstring& path);
 	std::optional<uint32_t> GetRegistryDword(const wchar_t* section, const wchar_t* key, const std::wstring& path);
 	std::optional<CLSID> GetRegistryCLSID(const wchar_t* section, const wchar_t* key, const std::wstring& path);
 	std::optional<std::string> GetRegistryAnsiString(const wchar_t* section, const wchar_t* key, const std::wstring& path);
+	std::optional<std::wstring> GetRegistryString(const wchar_t* section, const wchar_t* key, const std::wstring& path);
 
 	void SetRegistryDword(const wchar_t* section, const wchar_t* key, uint32_t value, const std::wstring& path);
 	void SetRegistryCLSID(const wchar_t* section, const wchar_t* key, const CLSID& value, const std::wstring& path);
@@ -83,6 +85,11 @@ bool Registry::Init()
 	return gotPathToPatchIni && gotPathToGameIni;
 }
 
+std::optional<int32_t> Registry::GetInt(const wchar_t* section, const wchar_t* key)
+{
+	return GetRegistryInt(section, key, pathToPatchIni);
+}
+
 std::optional<uint32_t> Registry::GetDword(const wchar_t* section, const wchar_t* key)
 {
 	return GetRegistryDword(section, key, pathToPatchIni);
@@ -91,6 +98,22 @@ std::optional<uint32_t> Registry::GetDword(const wchar_t* section, const wchar_t
 std::optional<std::string> Registry::GetAnsiString(const wchar_t* section, const wchar_t* key)
 {
 	return GetRegistryAnsiString(section, key, pathToPatchIni);
+}
+
+std::optional<std::wstring> Registry::GetString(const wchar_t* section, const wchar_t* key)
+{
+	return GetRegistryString(section, key, pathToPatchIni);
+}
+
+std::optional<int32_t> Registry::GetRegistryInt(const wchar_t* section, const wchar_t* key, const std::wstring& path)
+{
+	std::optional<int32_t> result;
+	const INT val = GetPrivateProfileIntW(section, key, INT_MIN, path.c_str());
+	if (val != INT_MIN)
+	{
+		result.emplace(val);
+	}
+	return result;
 }
 
 std::optional<uint32_t> Registry::GetRegistryDword(const wchar_t* section, const wchar_t* key, const std::wstring& path)
@@ -130,6 +153,19 @@ std::optional<std::string> Registry::GetRegistryAnsiString(const wchar_t* sectio
 	if (buf[0] != '\0')
 	{
 		result.emplace(WcharToAnsi(buf));
+	}
+	return result;
+}
+
+std::optional<std::wstring> Registry::GetRegistryString(const wchar_t* section, const wchar_t* key, const std::wstring& path)
+{
+	std::optional<std::wstring> result;
+
+	wchar_t buf[128];
+	GetPrivateProfileStringW(section, key, L"", buf, static_cast<DWORD>(std::size(buf)), path.c_str());
+	if (buf[0] != '\0')
+	{
+		result.emplace(buf);
 	}
 	return result;
 }
