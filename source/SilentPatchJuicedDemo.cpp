@@ -4,6 +4,7 @@
 #include <mmreg.h>
 #include <dsound.h>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -437,6 +438,37 @@ namespace THQCustomizableRace
 }
 
 
+namespace ZeroInitializeAllocations
+{
+	template<std::size_t Index>
+	void* (*orgAllocMemory)(size_t size);
+
+	template<std::size_t Index>
+	static void* AllocMemory(size_t size)
+	{
+		void* mem = orgAllocMemory<Index>(size);
+		if (mem != nullptr)
+		{
+			memset(mem, 0, size);
+		}
+		return mem;
+	}
+
+	template<std::size_t Ctr, typename Tuple, std::size_t... I, typename Func>
+	void HookEachImpl(Tuple&& tuple, std::index_sequence<I...>, Func&& f)
+	{
+		(f(std::get<I>(tuple), orgAllocMemory<Ctr << 16 | I>, AllocMemory<Ctr << 16 | I>), ...);
+	}
+
+	template<std::size_t Ctr = 0, typename Vars, typename Func>
+	void HookEach(Vars&& vars, Func&& f)
+	{
+		auto tuple = std::tuple_cat(std::forward<Vars>(vars));
+		HookEachImpl<Ctr>(std::move(tuple), std::make_index_sequence<std::tuple_size_v<decltype(tuple)>>{}, std::forward<Func>(f));
+	}
+}
+
+
 void OnInitializeHook()
 {
 	using namespace Memory;
@@ -542,8 +574,10 @@ void OnInitializeHook()
 	{
 		using namespace AudioCrackleFix;
 
-		auto set_notifications = get_pattern("FF 51 0C 85 C0 74 0F");
+		auto set_notifications = get_pattern("FF 51 0C 85 C0 74 0F 8B 4E 28 E8");
 		InjectHook(set_notifications, SetNotificationPositions_Hook, HookType::Call);
+
+		Log("Done: AudioCrackleFix");
 	}
 	TXN_CATCH();
 
@@ -710,6 +744,47 @@ void OnInitializeHook()
 	{
 		auto get_core_count = get_pattern("03 C8 83 F9 20 7C EE 5F", 2 + 2);
 		Patch<uint8_t>(get_core_count, 4);
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced (April/May 2005): Fix "Juiced requires virtual memory to be enabled"
+	try
+	{
+		auto global_memory_status = pattern("3B 4C 24 08 76 07 83 7C 24 ? 00 77 20").get_one();
+
+		Nop(global_memory_status.get<void>(4), 2);
+		Patch<uint8_t>(global_memory_status.get<void>(11), 0xEB);
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced (April/May 2005): Zero initialize string? allocations as they break with page heap enabled
+	try
+	{
+		using namespace ZeroInitializeAllocations;
+
+		auto allocs = pattern("8D 14 9D ? ? ? ? 52 E8 ? ? ? ? 83 C4 04 8B E8").count(2);
+		std::array<void*, 2> allocations = 
+		{
+			allocs.get(0).get<void>(8),
+			allocs.get(1).get<void>(8),
+		};
+
+		HookEach(allocations, InterceptCall);
+	}
+	TXN_CATCH();
+
+
+	// THQ Juiced (May 2005): Disable Polish, Russian and Czech as they're not shipped
+	// Facepalm...
+	try
+	{
+		auto languages_switch = pattern("B8 05 00 00 00 C3 B8 06 00 00 00 C3 B8 07 00 00 00 C3").get_one();
+
+		Patch<int32_t>(languages_switch.get<void>(1), 0);
+		Patch<int32_t>(languages_switch.get<void>(6 + 1), 0);
+		Patch<int32_t>(languages_switch.get<void>(12 + 1), 0);
 	}
 	TXN_CATCH();
 
