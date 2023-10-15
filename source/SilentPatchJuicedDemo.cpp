@@ -792,7 +792,17 @@ void OnInitializeHook()
 	// THQ Juiced: Custom starter car
 	if (CareerFilePresent()) try
 	{
-		auto cms_player_crew_collection = get_pattern("68 ? ? ? ? E8 ? ? ? ? 8B 85 ? ? ? ? 8B 08 8B 11", 1);
+		auto cms_player_crew_collection = [] {
+			try {
+				// January 2005
+				return get_pattern("68 ? ? ? ? E8 ? ? ? ? 8B 85 84 00 00 00 8B 08 8B 11", 1);
+			}
+			catch (hook::txn_exception&)
+			{
+				// April/May
+				return get_pattern("68 ? ? ? ? E8 ? ? ? ? 8B 9D 84 00 00 00 8B 33 33 C0", 1);
+			}
+		}();
 		Patch<const char*>(cms_player_crew_collection, "CMSPlayersCrewCollection2.txt");
 	}
 	TXN_CATCH();
@@ -815,7 +825,7 @@ void OnInitializeHook()
 	// THQ Juiced: Endless demo
 	if (Registry::GetDword(Registry::THQ_SECTION_NAME, Registry::ENDLESS_DEMO_KEY_NAME).value_or(0) != 0) try
 	{
-		auto endless_demo = get_pattern("80 7C D0 32 02 75 6C 8B 5E 70 89 3B", 5);
+		auto endless_demo = get_pattern("80 7C D0 32 02 75 ? 8B 5E 70 89 3B", 5);
 		Nop(endless_demo, 2);
 	}
 	TXN_CATCH();
