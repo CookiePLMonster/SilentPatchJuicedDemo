@@ -858,4 +858,29 @@ void OnInitializeHook()
 		}
 		TXN_CATCH();
 	}
+
+
+	// THQ Juiced: Unlock all menus
+	if (Registry::GetDword(Registry::THQ_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
+	{
+		auto string_ptr = [] {
+			try {
+				// January
+				return *get_pattern<uintptr_t>("B8 ? ? ? ? 8D 91 ? ? ? ? 89 99 ? ? ? ? 2B D0 8A 08 88 0C 02 03 C3 84 C9 75 F5 5E", 1);
+			}
+			catch (hook::txn_exception&)
+			{
+				// April/May
+				return *get_pattern<uintptr_t>("B8 ? ? ? ? 8B CA 2B C8 C7 82 ? ? ? ? ? ? ? ? 8D B1 ? ? ? ? 8D A4 24 00 00 00 00", 1);
+			}
+		}();
+
+		// Since we're patching a string directly, for safety only patch if it equals "DemoMenu"
+		if (Memory::VP::MemEquals(string_ptr, {0x44, 0x65, 0x6D, 0x6F, 0x4D, 0x65, 0x6E, 0x75, 0x00}))
+		{
+			// "Menu"
+			Memory::VP::Patch(string_ptr, {0x4D, 0x65, 0x6E, 0x75, 0x00});
+		}
+	}
+	TXN_CATCH();
 }
