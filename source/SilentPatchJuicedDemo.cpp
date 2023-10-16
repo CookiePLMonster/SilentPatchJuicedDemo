@@ -1,4 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 
 #include <mmreg.h>
@@ -18,6 +19,17 @@
 #include "Utils/Patterns.h"
 #include "Utils/ScopedUnprotect.hpp"
 
+char* strndup(const char *str, size_t size)
+{
+	const size_t len = std::min(std::strlen(str), size);
+	char* mem = static_cast<char*>(std::malloc(len + 1));
+	if (mem != nullptr)
+	{
+		std::memcpy(mem, str, len);
+		mem[len] = '\0';
+	}
+	return mem;
+}
 
 // Stub always returning DX 9.0c, because this function cannot be reached anyway if DX9 is not installed
 HRESULT GetDirectXVersion_Stub(int* major, int* minor, char* letter)
@@ -730,13 +742,15 @@ void OnInitializeHook()
 
 
 	// Acclaim Juiced: Custom driver names
-	const auto customDriverName = Registry::GetAnsiString(Registry::ACCLAIM_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
-	if (customDriverName) try
 	{
-		auto driver_name = get_pattern(" B8 ? ? ? ? 8D 4C 24 18 E8 ? ? ? ? 8B 7D 68", 1);
-		Patch(driver_name, _strdup(customDriverName->c_str()));
+		const auto customDriverName = Registry::GetAnsiString(Registry::ACCLAIM_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
+		if (customDriverName) try
+		{
+			auto driver_name = get_pattern("B8 ? ? ? ? 8D 4C 24 18 E8 ? ? ? ? 8B 7D 68", 1);
+			Patch(driver_name, strndup(customDriverName->c_str(), 19));
+		}
+		TXN_CATCH();
 	}
-	TXN_CATCH();
 
 
 	// THQ Juiced (January 2005): Fix a startup crash with more than 4 cores
@@ -829,4 +843,19 @@ void OnInitializeHook()
 		Nop(endless_demo, 2);
 	}
 	TXN_CATCH();
+	
+	
+	// THQ Juiced: Custom driver names
+	{
+		const auto customDriverName = Registry::GetAnsiString(Registry::THQ_SECTION_NAME, Registry::DRIVER_NAME_KEY_NAME);
+		if (customDriverName) try
+		{
+			auto driver_name_switch = get_pattern("FF 52 08 83 C0 FF 83 F8 ? 77 ? FF 24 85 ? ? ? ? B8", 3 + 2);
+			auto driver_name = get_pattern("B8 ? ? ? ? 8D 4C 24 18 E8 ? ? ? ? 8B ? 64", 1);
+
+			Patch<int8_t>(driver_name_switch, 127);
+			Patch(driver_name, strndup(customDriverName->c_str(), 19));
+		}
+		TXN_CATCH();
+	}
 }
