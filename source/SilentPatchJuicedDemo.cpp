@@ -860,6 +860,19 @@ void OnInitializeHook()
 	}
 
 
+	// THQ Juiced: Customizable starting money
+	{
+		constexpr uint32_t DEFAULT_MONEY = 25000;
+		const auto startingMoney = Registry::GetDword(Registry::THQ_SECTION_NAME, Registry::STARTING_MONEY_KEY_NAME).value_or(DEFAULT_MONEY);
+		if (startingMoney != DEFAULT_MONEY) try
+		{
+			auto money = get_pattern("51 C7 46 0C A8 61 00 00", 1 + 3);
+			Patch<uint32_t>(money, startingMoney);
+		}
+		TXN_CATCH();
+	}
+
+
 	// THQ Juiced: Unlock all menus
 	if (Registry::GetDword(Registry::THQ_SECTION_NAME, Registry::ALL_UNLOCK_KEY_NAME).value_or(0) != 0) try
 	{

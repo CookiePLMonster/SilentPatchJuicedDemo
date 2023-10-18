@@ -16,6 +16,7 @@ namespace Registry
 	inline const wchar_t* DRIVER_NAME_KEY_NAME = L"DriverName";
 
 	inline const wchar_t* ENDLESS_DEMO_KEY_NAME = L"EndlessDemo";
+	inline const wchar_t* STARTING_MONEY_KEY_NAME = L"StartingMoney";
 
 	bool Init();
 	void ApplyPatches(void* module);
